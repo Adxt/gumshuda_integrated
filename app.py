@@ -1,10 +1,14 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, session
+from werkzeug.utils import secure_filename 
 
 
 UPLOAD_FOLDER ='D:\\gum int\\upfiles'
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Define secret key to enable session
+app.secret_key = 'This is your secret key to utilize session in Flask'
 
 
 @app.route('/')
@@ -29,7 +33,7 @@ def verify():
 
 @app.route('/collect')
 def collect():
-    return render_template("collect.html")
+    return render_template("form.html")
 
 
 @app.route('/submit_form', methods=['POST'])
@@ -38,7 +42,7 @@ def submit_form():
 
     #imports
 
-    import sqlite3
+    import sqlite3 
     from sqlite3 import Error
     import cv2
     import numpy as np
@@ -184,11 +188,26 @@ def submit_form():
     age= request.form['age']
     CN = request.form['cno']
     gen = request.form['gender']
+    # genderop = request.form['gender']
+    # if genderop=='male':
+    #     gen='male'
+    # if genderop=='female':
+    #     gen='female'
     Address =request.form['add']
     cr=request.form['crime']
-    # a = request.files['photo']
-    a= request.form['path']
     
+    if request.method == 'POST':
+        # Upload file flask
+        uploaded_img = request.files['path']
+        # Extracting uploaded data file name
+        img_filename = secure_filename(uploaded_img.filename)
+        # Upload file to database (defined uploaded folder in static path)
+        uploaded_img.save(os.path.join(app.config['UPLOAD_FOLDER'], img_filename))
+        # Storing uploaded file path in flask session
+        a = os.path.join(app.config['UPLOAD_FOLDER'], img_filename)
+        
+    # a= request.form['path']
+    # a = session.get('uploaded_img_file_path', None)
 
     # if(request.method=='POST'):
     #     f=request.files['photo']
@@ -196,6 +215,7 @@ def submit_form():
 
     # Do something with the form data and uploaded file...
     print("Form submitted successfully!")
+   
 
     insertOrUpdate(Id,name,age,gen,CN,Address,cr)
 
@@ -264,13 +284,31 @@ def search_img():
     import numpy as np
     import sqlite3
     import sys
+    from flask import send_file
+    import os
 
+    flag=0
     imagePath = sys.argv[-1]
     #faceDetect=cv2.CascadeClassifier('haarcascade_frontalface_default.xml');
     faceDetect = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
     # a=input('upload image : ')
-    a= request.form['path']
+    # a= request.form['path']
+
+
+    if request.method == 'POST':
+            # Upload file flask
+            uploaded_img = request.files['path']
+            # Extracting uploaded data file name
+            img_filename = secure_filename(uploaded_img.filename)
+            # Upload file to database (defined uploaded folder in static path)
+            uploaded_img.save(os.path.join(app.config['UPLOAD_FOLDER'], img_filename))
+            # Storing uploaded file path in flask session
+            a = os.path.join(app.config['UPLOAD_FOLDER'], img_filename)
+           
+
+
+
 
     #rec=cv2.createLBPHFaceRecognizer();
     rec = cv2.face.LBPHFaceRecognizer_create()
@@ -299,15 +337,24 @@ def search_img():
         for(x,y,w,h) in faces:
             cv2.rectangle(image,(x,y),(x+w,y+h),(0,255,0),2)
             id,conf=rec.predict(gray[y:y+h,x:x+w])
-            print(id)
+            # print(id)
             profile=getProfile(id)
             if(profile!=None):
+                
                 cv2.putText(image,"Name : "+str(profile[1]),(x,y+h+20),fontface, fontscale, fontcolor);
                 cv2.putText(image,"Age : "+str(profile[2]),(x,y+h+45),fontface, fontscale, fontcolor);
                 cv2.putText(image,"Gender : "+str(profile[3]),(x,y+h+70),fontface, fontscale, fontcolor); 
                 cv2.putText(image,"Contact no. : "+str(profile[4]),(x,y+h+95),fontface, fontscale, fontcolor);
                 cv2.putText(image,"Address  : "+str(profile[5]),(x,y+h+120),fontface, fontscale, fontcolor);
                 cv2.putText(image,"Criminal Records : "+str(profile[6]),(x,y+h+145),fontface, fontscale, fontcolor);
+                if( len(str(profile[6]))==0):
+                    
+                    status='civillan'
+                else :
+                    status=str(profile[6])
+
+            else:
+                flag=1
             #else:
                 #cv2.putText(image,"Name : Unknown",(x,y+h+20),fontface, fontscale, fontcolor);
                 #cv2.putText(image,"Age : Unknown",(x,y+h+45),fontface, fontscale, fontcolor);
@@ -315,12 +362,18 @@ def search_img():
                 #cv2.putText(image,"Contact no. : Unknown",(x,y+h+95),fontface, fontscale, fontcolor);
                 #cv2.putText(image,"Address : Unknown",(x,y+h+120),fontface, fontscale, fontcolor);
                 #cv2.putText(image,"Criminal Records : Unknown",(x,y+h+145),fontface, fontscale, fontcolor);
+        
         cv2.namedWindow('Face',cv2.WINDOW_NORMAL)
+        
         cv2.imshow("Face",image);
         if(cv2.waitKey(1)==ord('q')):
             break;
+        
     cv2.destroyAllWindows()
-
+    if(flag==0):
+        return "<h1>NAME:"+str(profile[1])+"</h1><br>"+"<h1>ID:"+str(profile[0])+"</h1><br>"+"<h1>GENDER:"+str(profile[3])+"</h1><br>"+"<h1>CONT.NO:"+str(profile[4])+"</h1><br>"+"<h1>ADDRESS:"+str(profile[5])+"</h1><br>"+"<h1>"+status+"</h1><br>"
+    else:
+        return "<h1 align:center>"+"NO MATCH FOUND!"+"</h1><br>"+"<h2>"+"We  are  working  to  improve  our  algorithm  to  match  as  closely  as possible!!!"+"</h2><br>"
     
 
 
